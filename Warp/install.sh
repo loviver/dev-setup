@@ -10,9 +10,10 @@ source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/directories.sh"
 source "$SCRIPT_DIR/lib/download.sh"
 source "$SCRIPT_DIR/lib/desktop.sh"
+source "$SCRIPT_DIR/lib/native.sh"
 
-main() {
-  echo "Instalando $APP_NAME"
+install_appimage() {
+  echo "Modo: AppImage"
   echo ""
   
   echo "Preparando directorios..."
@@ -22,9 +23,9 @@ main() {
   
   echo "Obteniendo URL de descarga..."
   local final_url
-  if ! final_url=$(resolve_download_url "$DOWNLOAD_URL"); then
+  if ! final_url=$(resolve_download_url "$DOWNLOAD_URL_APPIMAGE"); then
     echo "Error: no se pudo obtener la URL de descarga"
-    exit 1
+    return 1
   fi
   echo ""
   
@@ -32,31 +33,96 @@ main() {
   filename=$(basename "$final_url")
   
   if ! validate_appimage "$filename"; then
-    exit 1
+    return 1
   fi
   
   echo "AppImage detectado: $filename"
   echo ""
   
   if ! download_appimage "$final_url" "$INSTALL_DIR" "$filename"; then
-    exit 1
+    return 1
   fi
   echo ""
   
+  local exec_path="$INSTALL_DIR/$filename"
+  
   if ! install_icon "$ICON_URL" "$ICON_DIR" "$ICON_NAME"; then
-    exit 1
+    return 1
   fi
   echo ""
   
   echo "Creando entrada de escritorio..."
-  create_desktop_entry "$DESKTOP_DIR" "$DESKTOP_FILE" "$APP_NAME" "$APP_COMMENT" "$INSTALL_DIR/$filename" "$ICON_DIR/$ICON_NAME" "$CATEGORIES"
+  create_desktop_entry "$DESKTOP_DIR" "$DESKTOP_FILE" "$APP_NAME" "$APP_COMMENT" "$exec_path" "$ICON_DIR/$ICON_NAME" "$CATEGORIES"
   echo ""
   
   echo "Actualizando base de datos de escritorio..."
   update_desktop_database "$DESKTOP_DIR"
   echo ""
   
-  echo "$APP_NAME instalado correctamente en $INSTALL_DIR/$filename"
+  echo "$APP_NAME instalado correctamente en $exec_path"
+}
+
+install_native() {
+  echo "Modo: Nativo"
+  echo ""
+  
+  echo "Preparando directorios..."
+  setup_directories "$INSTALL_DIR" "$ICON_DIR" "$DESKTOP_DIR"
+  echo ""
+  
+  echo "Obteniendo URL de descarga..."
+  local final_url
+  if ! final_url=$(resolve_download_url "$DOWNLOAD_URL_NATIVE_BASE"); then
+    echo "Error: no se pudo obtener la URL de descarga"
+    return 1
+  fi
+  echo ""
+  
+  if ! download_native "$final_url"; then
+    return 1
+  fi
+  echo ""
+  
+  cleanup_appimage "$INSTALL_DIR" "Warp"
+  echo ""
+  
+  local exec_path
+  exec_path=$(get_executable_path)
+  
+  if ! install_icon "$ICON_URL" "$ICON_DIR" "$ICON_NAME"; then
+    return 1
+  fi
+  echo ""
+  
+  echo "Creando entrada de escritorio..."
+  create_desktop_entry "$DESKTOP_DIR" "$DESKTOP_FILE" "$APP_NAME" "$APP_COMMENT" "$exec_path" "$ICON_DIR/$ICON_NAME" "$CATEGORIES"
+  echo ""
+  
+  echo "Actualizando base de datos de escritorio..."
+  update_desktop_database "$DESKTOP_DIR"
+  echo ""
+  
+  echo "$APP_NAME instalado correctamente en $exec_path"
+}
+
+main() {
+  echo "Instalando $APP_NAME"
+  echo "Tipo de instalación: $INSTALL_TYPE"
+  echo ""
+  
+  case "$INSTALL_TYPE" in
+    appimage)
+      install_appimage
+      ;;
+    native)
+      install_native
+      ;;
+    *)
+      echo "Error: tipo de instalación inválido '$INSTALL_TYPE'"
+      echo "Tipos válidos: appimage, native"
+      exit 1
+      ;;
+  esac
 }
 
 main "$@"
