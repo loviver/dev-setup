@@ -1,0 +1,10 @@
+#!/bin/bash
+APP_NAME="Cursor AI"
+APP_COMMENT="AI Code Editor"
+PACKAGE_NAME="cursor"
+DOWNLOAD_URL="https://api2.cursor.sh/updates/download/golden/linux-x64-rpm/cursor/2.4"
+ICON_URL="https://cursor.com/marketing-static/_next/image?url=%2Fmarketing-static%2Fdownload%2Fapp-icon-25d-light.png&w=3840&q=70"
+ICON_NAME="cursor-icon.webp"
+DESKTOP_FILE="cursor.desktop"
+CATEGORIES="Development;IDE;"
+EXEC_NAME="cursor"

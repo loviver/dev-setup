@@ -1,0 +1,10 @@
+#!/bin/bash
+APP_NAME="Visual Studio Code"
+APP_COMMENT="Code Editor"
+PACKAGE_NAME="code"
+DOWNLOAD_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/ce099c1ed25d9eb3076c11e4a280f3eb52b4fbeb/code-1.111.0-1772846667.el8.x86_64.rpm"
+ICON_URL="https://code.visualstudio.com/assets/images/code-stable.png"
+ICON_NAME="vscode.png"
+DESKTOP_FILE="code.desktop"
+CATEGORIES="Development;IDE;TextEditor;"
+EXEC_NAME="code"

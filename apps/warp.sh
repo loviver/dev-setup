@@ -1,0 +1,10 @@
+#!/bin/bash
+APP_NAME="Warp Terminal"
+APP_COMMENT="Warp Terminal"
+PACKAGE_NAME="warp-terminal"
+DOWNLOAD_URL="https://app.warp.dev/download?package=rpm"
+ICON_URL="https://user-images.githubusercontent.com/85056161/221151383-dee5374b-03d9-4548-a0fd-35dfc7ea0f5b.png"
+ICON_NAME="warp.png"
+DESKTOP_FILE="warp.desktop"
+CATEGORIES="System;Utility;TerminalEmulator;"
+EXEC_NAME="warp-terminal"

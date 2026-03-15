@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 show_usage() {
   cat <<EOF
-Instalador de aplicaciones
+Instalador de aplicaciones (modo rápido)
 
 Uso: $(basename "$0") [OPCIONES]
 
@@ -13,42 +13,32 @@ Opciones:
   all       Instalar todas las aplicaciones (por defecto)
   cursor    Instalar solo Cursor AI
   warp      Instalar solo Warp Terminal
+  vscode    Instalar solo Visual Studio Code
   -h        Mostrar esta ayuda
+
+Para menú interactivo con más opciones, usa: ./manager.sh
 
 EOF
 }
 
-install_app() {
-  local app_dir="$1"
-  local app_name="$2"
-  
-  if [[ ! -f "$app_dir/install.sh" ]]; then
-    echo "Error: no se encuentra $app_dir/install.sh"
-    return 1
-  fi
-  
-  echo ""
-  echo "Instalando $app_name"
-  bash "$app_dir/install.sh"
+# Delega al nuevo sistema
+exec_manager() {
+  bash "$SCRIPT_DIR/manager.sh" "$@"
 }
 
 main() {
   local mode="${1:-all}"
-  
+
   case "$mode" in
     -h|--help)
       show_usage
       exit 0
       ;;
-    cursor)
-      install_app "$SCRIPT_DIR/Cursor" "Cursor AI"
-      ;;
-    warp)
-      install_app "$SCRIPT_DIR/Warp" "Warp Terminal"
+    cursor|warp|vscode)
+      exec_manager "$mode" install
       ;;
     all)
-      install_app "$SCRIPT_DIR/Cursor" "Cursor AI"
-      install_app "$SCRIPT_DIR/Warp" "Warp Terminal"
+      exec_manager all install
       ;;
     *)
       echo "Error: opción desconocida '$mode'"
@@ -56,9 +46,6 @@ main() {
       exit 1
       ;;
   esac
-  
-  echo ""
-  echo "Instalación completada"
 }
 
 main "$@"
