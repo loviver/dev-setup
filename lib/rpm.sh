@@ -84,8 +84,11 @@ rpm_update_file() {
 
   if [[ "$manager" == "dnf" ]]; then
     if ! sudo dnf upgrade -y "$rpm_file" 2>&1; then
-      msg_err "Falló la actualización con dnf"
-      return 1
+      msg_warn "dnf falló, intentando con rpm --nosignature..."
+      if ! sudo rpm -U --nosignature "$rpm_file" 2>&1; then
+        msg_err "Falló la actualización con rpm"
+        return 1
+      fi
     fi
   else
     if ! sudo rpm -U "$rpm_file" 2>&1; then
