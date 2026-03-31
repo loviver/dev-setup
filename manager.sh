@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/lib/menu.sh"
 source "$SCRIPT_DIR/lib/download.sh"
 source "$SCRIPT_DIR/lib/rpm.sh"
 source "$SCRIPT_DIR/lib/desktop.sh"
+source "$SCRIPT_DIR/lib/tarball.sh"
 
 # Descubre apps disponibles en apps/
 discover_apps() {
@@ -25,14 +26,34 @@ load_app_config() {
   # Limpiar variables previas
   unset APP_NAME APP_COMMENT PACKAGE_NAME DOWNLOAD_URL
   unset ICON_URL ICON_NAME DESKTOP_FILE CATEGORIES EXEC_NAME
+  unset INSTALL_TYPE INSTALL_DIR BIN_DIR EXEC_SUBPATH
+  INSTALL_TYPE="rpm"  # default
   source "$config_file"
+}
+
+# Verifica si una app está instalada (según tipo)
+app_is_installed() {
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    tarball_is_installed "${INSTALL_DIR:-}" "$EXEC_NAME"
+  else
+    rpm_is_installed "$PACKAGE_NAME"
+  fi
+}
+
+# Obtiene la versión instalada (según tipo)
+app_get_version() {
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    tarball_get_version "${INSTALL_DIR:-}" "$EXEC_NAME"
+  else
+    rpm_get_version "$PACKAGE_NAME"
+  fi
 }
 
 # Muestra el estado de una app
 show_app_status() {
-  if rpm_is_installed "$PACKAGE_NAME"; then
+  if app_is_installed; then
     local version
-    version=$(rpm_get_version "$PACKAGE_NAME")
+    version=$(app_get_version)
     echo -e "  Estado: ${GREEN}instalado${NC} (${version})"
   else
     echo -e "  Estado: ${YELLOW}no instalado${NC}"
@@ -54,7 +75,7 @@ app_actions() {
     echo ""
 
     local is_installed=false
-    rpm_is_installed "$PACKAGE_NAME" && is_installed=true
+    app_is_installed && is_installed=true
 
     if $is_installed; then
       show_menu "Acciones" \
@@ -95,14 +116,25 @@ action_install() {
   msg "Instalando $APP_NAME..."
   setup_directories
 
-  if ! rpm_install_from_url "$DOWNLOAD_URL" "install"; then
-    msg_err "Falló la instalación de $APP_NAME"
-    return 1
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    if ! tarball_install "$DOWNLOAD_URL" "$INSTALL_DIR" "${BIN_DIR:-$HOME/.local/bin}"; then
+      msg_err "Falló la instalación de $APP_NAME"
+      return 1
+    fi
+  else
+    if ! rpm_install_from_url "$DOWNLOAD_URL" "install"; then
+      msg_err "Falló la instalación de $APP_NAME"
+      return 1
+    fi
   fi
 
   install_icon "$ICON_URL" "$ICON_NAME"
   local exec_path
-  exec_path=$(command -v "$EXEC_NAME" 2>/dev/null || echo "/usr/bin/$EXEC_NAME")
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    exec_path="${BIN_DIR:-$HOME/.local/bin}/$EXEC_NAME"
+  else
+    exec_path=$(command -v "$EXEC_NAME" 2>/dev/null || echo "/usr/bin/$EXEC_NAME")
+  fi
   create_desktop_entry "$DESKTOP_FILE" "$APP_NAME" "$APP_COMMENT" "$exec_path" "$ICON_NAME" "$CATEGORIES"
 
   echo ""
@@ -115,7 +147,7 @@ action_update() {
 
   echo ""
   local current_version
-  current_version=$(rpm_get_version "$PACKAGE_NAME")
+  current_version=$(app_get_version)
   msg "Versión actual: $current_version"
 
   if ! confirm "¿Descargar e instalar la última versión?"; then
@@ -124,28 +156,40 @@ action_update() {
 
   msg "Actualizando $APP_NAME..."
 
-  if ! rpm_install_from_url "$DOWNLOAD_URL" "update"; then
-    msg_err "Falló la actualización de $APP_NAME"
-    return 1
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    if ! tarball_install "$DOWNLOAD_URL" "$INSTALL_DIR" "${BIN_DIR:-$HOME/.local/bin}"; then
+      msg_err "Falló la actualización de $APP_NAME"
+      return 1
+    fi
+  else
+    if ! rpm_install_from_url "$DOWNLOAD_URL" "update"; then
+      msg_err "Falló la actualización de $APP_NAME"
+      return 1
+    fi
   fi
 
   local new_version
-  new_version=$(rpm_get_version "$PACKAGE_NAME")
+  new_version=$(app_get_version)
   msg_ok "Actualizado: $current_version → $new_version"
 }
 
 action_version() {
   echo ""
-  if rpm_is_installed "$PACKAGE_NAME"; then
+  if app_is_installed; then
     local version
-    version=$(rpm_get_version "$PACKAGE_NAME")
+    version=$(app_get_version)
     msg "Paquete: $PACKAGE_NAME"
     msg "Versión: $version"
-    echo ""
-    msg "Detalles del paquete:"
-    rpm -qi "$PACKAGE_NAME" 2>/dev/null | grep -E "^(Name|Version|Release|Install Date|Size|Summary)" | while read -r line; do
-      echo "  $line"
-    done
+    if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+      msg "Tipo: tarball"
+      msg "Directorio: ${INSTALL_DIR:-}"
+    else
+      echo ""
+      msg "Detalles del paquete:"
+      rpm -qi "$PACKAGE_NAME" 2>/dev/null | grep -E "^(Name|Version|Release|Install Date|Size|Summary)" | while read -r line; do
+        echo "  $line"
+      done
+    fi
   else
     msg_warn "$PACKAGE_NAME no está instalado"
   fi
@@ -169,7 +213,11 @@ action_remove() {
   fi
 
   msg "Desinstalando $APP_NAME..."
-  rpm_remove "$PACKAGE_NAME"
+  if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+    tarball_remove "$INSTALL_DIR" "$EXEC_NAME" "${BIN_DIR:-$HOME/.local/bin}"
+  else
+    rpm_remove "$PACKAGE_NAME"
+  fi
   remove_desktop_entry "$DESKTOP_FILE" "$ICON_NAME"
   msg_ok "$APP_NAME desinstalado"
 }
@@ -188,15 +236,19 @@ action_batch() {
     separator
 
     if [[ "$action" == "install" ]]; then
-      if rpm_is_installed "$PACKAGE_NAME"; then
+      if app_is_installed; then
         msg "Ya instalado, saltando..."
       else
         action_install "$config"
       fi
     elif [[ "$action" == "update" ]]; then
-      if rpm_is_installed "$PACKAGE_NAME"; then
+      if app_is_installed; then
         msg "Actualizando..."
-        rpm_install_from_url "$DOWNLOAD_URL" "update" || msg_err "Falló la actualización"
+        if [[ "$INSTALL_TYPE" == "tarball" ]]; then
+          tarball_install "$DOWNLOAD_URL" "$INSTALL_DIR" "${BIN_DIR:-$HOME/.local/bin}" || msg_err "Falló la actualización"
+        else
+          rpm_install_from_url "$DOWNLOAD_URL" "update" || msg_err "Falló la actualización"
+        fi
       else
         msg_warn "No instalado, saltando..."
       fi
@@ -220,9 +272,9 @@ show_summary() {
 
   for config in "${configs[@]}"; do
     load_app_config "$config"
-    if rpm_is_installed "$PACKAGE_NAME"; then
+    if app_is_installed; then
       local version
-      version=$(rpm_get_version "$PACKAGE_NAME")
+      version=$(app_get_version)
       echo -e "  ${GREEN}●${NC} $APP_NAME ${CYAN}($version)${NC}"
     else
       echo -e "  ${RED}○${NC} $APP_NAME ${YELLOW}(no instalado)${NC}"
@@ -242,7 +294,7 @@ main_menu() {
     for config in "${configs[@]}"; do
       load_app_config "$config"
       local status=""
-      if rpm_is_installed "$PACKAGE_NAME"; then
+      if app_is_installed; then
         status=" ${GREEN}[instalado]${NC}"
       fi
       menu_items+=("$(echo -e "$APP_NAME$status")")
